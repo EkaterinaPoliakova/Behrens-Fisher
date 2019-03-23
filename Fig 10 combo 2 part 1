@@ -1,0 +1,51 @@
+#########################################################
+# Computing probability that 0.5*ln(Var(X)/Var(Y)) is in the range -1.3..0 for different values of Theta
+# given the unniform "prior distribution" for 0.5*ln(Var(X)/Var(Y))
+partitition_teta_to_use=9902 #there were problems with rounding the last, 9901-th experimental value of Theta, so it is 9902 instead od 9901 here. The issue is going to be fixed in another way
+
+N=7  #size of the first sample
+M=13 #size of the second sample
+control1=0
+control2=0
+sigma0_2=1 #standard deviation of the second sample
+teta_observed=matrix(data=rep(0,partitition_teta_to_use*2),nrow=2,ncol=partitition_teta_to_use)
+#the first row is for number of observed tetas, the other for the cases when 0.5*Var(x)/Var(Y) was in (-1.3,0)
+N_simulations=10^5
+while (2<3)    #continue until interrupted manually
+{
+logsigma1=runif(N_simulations,-20,20)  # draw some value of 0.5*ln(Var(X)/Var(Y)) 
+sigma_1=exp(logsigma1)
+Y=matrix(rnorm(M*N_simulations,mean=0,sd=sigma0_2),
+         nrow=M,              # number of rows 
+         ncol=N_simulations)
+for (i in 1:N_simulations)
+  {
+    X=rnorm(N,0,sigma_1[i])
+    s12=var(X)
+    s22=var(Y[,i])
+    #compute the angle for Behrens-Fisher distribution 
+    Theta=max(atan(sqrt(s12*M/s22/N))*2/pi,1/9901)
+    
+    #add 1 to the entry, corresponding one of the 9901 ranges for \Theta and 1st row
+    teta_observed[1,Theta*partitition_teta_to_use]=teta_observed[1,Theta*partitition_teta_to_use]+1
+    
+    #if  0.5*Var(x)/Var(Y) was in (-1.3,0), add 1 to the entry, corresponding one of the 9901 ranges for \Theta and 2nd row
+    if((logsigma1[i]<0)&&(logsigma1[i]>-1.3))
+      teta_observed[2,Theta*partitition_teta_to_use]=teta_observed[2,Theta*partitition_teta_to_use]+1
+  }
+control1=teta_observed[1,1]  #control numbers to see when there is enough thetas to interrupt the loop manually
+control12=teta_observed[1,5000]  
+}
+
+#compute the probabilities
+prob1=teta_observed[2,]/teta_observed[1,] 
+
+#smoothing 
+prob2=rep(0,partitition_teta_to_use)
+for (i in 3:9899)
+prob2[i]=mean(prob1[(i-2):(i+2)])
+
+plot(1:partitition_teta_to_use,prob1,type='l')  #control of the results
+plot(1:partitition_teta_to_use,prob2,type='l')  #control of the results
+
+write(prob2, file="prob2.txt", append=TRUE, sep="\t") #save the results

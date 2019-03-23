@@ -1,0 +1,94 @@
+#reading quantiles for the Behrens-Fisher distribution from a file
+quant0975=rep(0,100)
+quant0025=rep(0,100)
+quant0975=scan(file = "df 6 12.txt", what = quant0975, nmax = 100, skip = 30)
+quant0025=scan(file = "df 6 12.txt", what = quant0025, nmax = 100, skip = 0)
+partitition_teta_to_use=9901 #we will actually use 99*100+1 values of teta
+#there will be 99 more values of teta between each two neighbour tetas from before
+q0025=rep(0,partitition_teta_to_use)  #the quantiles for this finer partitition of teta
+q0975=rep(0,partitition_teta_to_use)
+
+#We find the new quantiles with linear interpolation:
+for (i in 1:partitition_teta_to_use)
+{ distance_to_lower_int=(i+99)/100-floor((i+99)/100)       
+q0025[i]=quant0025[floor((i+99)/100)]*(1-distance_to_lower_int)+quant0025[ceiling((i+99)/100)]*distance_to_lower_int
+q0975[i]=quant0975[floor((i+99)/100)]*(1-distance_to_lower_int)+quant0975[ceiling((i+99)/100)]*distance_to_lower_int
+}
+#Quantiles of Behrens-Fisher distribution are ready for use!
+###########################################################################################################
+#Calculating the plot
+
+N=7  #size of the first sample
+M=13 #size of second sample
+sigma0_2=1 #standard deviation of the second sample 
+sigma0_1=exp(sort(c(seq(from=-4.4,to = 4.4, by=0.4),seq (from=1.1,to=1.9,by=0.2))))#standard deviation of the first sample 
+#we are more detailed in the area where Welchs test has wrong coverage
+mu=0
+N_simulations=100000000
+
+BF=0 #the decision if H0 is rejected by BF test
+W=0 #the decision if H0 is rejected by Welch test
+forcast_combo1=rep(0,length(sigma0_1))
+forcast_combo2=rep(0,length(sigma0_1))
+
+for (i in 1:N_simulations)
+  for (j in 1:length(sigma0_1))
+       {
+    #generate 2 samples
+      Y=rnorm(M,mu,sigma0_2)      #!!!can be optimized in future codes!!!
+      X=rnorm(N,0,sigma0_1[j])
+      
+      #compute the difference of means and sample variances, to avoid doing it many times
+      U=mean(X)-mean(Y)
+      s12=var(X)
+      s22=var(Y)
+            ###############
+      #do the Behrens-Fisher test
+      #compute the angle for Behrens-Fisher distribution 
+      Theta=atan(sqrt(s12*M/s22/N))*2/pi+0.000101 
+
+      nevner=sqrt(s12/N+s22/M)
+      if ((U/nevner<q0025[Theta*partitition_teta_to_use])||(U/nevner>q0975[Theta*partitition_teta_to_use]))
+        BF=1 else BF=0
+
+      ###############
+      #do the Welch test
+      Teta=s12/s22#follow the notation in Larsen and Marx
+      frihetsgrad=((Teta+N/M)^2)/((Teta^2)/(N-1)+((N/M)^2)/(M-1))#compute degrees of freedom for Welchs test as in Larsen and Marx
+      
+      test_welch=(abs(U)-nevner*qt(0.975, df=frihetsgrad))
+      if (test_welch>0) W=1 else W=0
+      
+
+###########do the “randomized tests”   ##############################
+#combo 1      
+      if(runif(1)>0.51)
+      {
+        forcast_combo1[j]=forcast_combo1[j]+BF
+      }       else
+        {
+          forcast_combo1[j]=forcast_combo1[j]+W
+        }
+      
+
+#combo 2
+      if(runif(1)>(0.51+0.49*prob2[Theta*partitition_teta_to_use]))
+      {
+         forcast_combo2[j]=forcast_combo2[j]+BF
+      }   else
+        {
+          forcast_combo2[j]=forcast_combo2[j]+W  
+          }  
+    }
+dekning1=forcast_combo1/i
+dekning2=forcast_combo2/i
+
+
+#plotting
+plot(log(sigma0_1),dekning1,type='l',ylim=c(0.04,0.051),xlab="0.5*ln (Var(X)/Var(Y))", ylab="frequency of rejecting H0")
+par ( new=TRUE)
+plot(log(sigma0_1),dekning2,ylim=c(0.04,0.051),type='l',col='red',xlab="", ylab="")
+par ( new=TRUE)
+plot(log(sigma0_1),rep(0.05,length(sigma0_1)),col='grey',type='l',lty='dashed',ylim=c(0.04,0.051),xlab="", ylab="")
+par ( new=TRUE)
+legend("bottomleft",legend=c("combo1", "combo 2"),col=c('black', 'red'), pch=1)
